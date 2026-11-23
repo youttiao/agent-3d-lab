@@ -162,6 +162,14 @@ URDF 模式强制 `fusestatic=true`，而 `FuseStatic` 拒绝把质量融进 wor
 > 不加它，你的读回结果会显示 `body_mass[0] == 0`，
 > 然后你会"发现"一个其实并不存在的缺失惯性。
 
+> ✅ **本机实测（MuJoCo 4.0.1, 2026-11-23）**：
+> ```
+> [默认]              body_mass = [0. 2. 2.]   总质量 4.0000 kg
+> [fusestatic=false] body_mass = [0. 1. 2. 2.] 总质量 5.0000 kg
+> ⚠️ base link 的 1.0000 kg 被静默丢弃了
+> ```
+> 用 `checks/urdf_probe.py` 可以一键查出来（它会自动对比两种模式）。
+
 ### 3.2 ⚠️ MuJoCo **4.0 之前静默忽略 URDF 的 `<mimic>`**
 
 | MuJoCo 版本 | URDF `<mimic>` |
@@ -169,8 +177,22 @@ URDF 模式强制 `fusestatic=true`，而 `FuseStatic` 拒绝把质量融进 wor
 | ≤ 3.12.0（2026-08-20） | **静默忽略**。mimic 关节变成独立自由度，**不打印任何警告** |
 | ≥ 3.13.0（2026-09-09） | 翻译成 `mjEQ_JOINT` 等式约束 |
 
-> **本机装的是 3.12.0** → 每一个 `<mimic>` 都会被静默丢掉。
-> 要用 mimic 就得升到 ≥ 3.13（建议 4.0.1，2026-11-11 发布）。
+> **本机已从 3.12.0 升到 4.0.1**（2026-11-23）。
+>
+> ⚠️ 升级踩了个坑：**4.0 把包拆开了**（`mujoco-core` / `mujoco-studio` / `mujoco`），
+> 3.12 的残留目录会让 `import mujoco` 直接报
+> `ModuleNotFoundError: No module named 'mujoco._specs'`。
+> 修法：`pip install --force-reinstall --no-deps mujoco mujoco-core`
+
+> ✅ **本机实测**：一个两关节、`j2` mimic `j1`（multiplier=1.5, offset=0.1）的 URDF：
+> ```
+> njnt=2  neq=1
+> 等式: mjEQ_JOINT  obj1=1 obj2=0  polycoef=[0.1, 1.5, 0.0, 0.0, 0.0]
+> ```
+> 三件事一次证实：
+> ① `<mimic>` 生效了（`neq=1`，3.12 时是 0）；
+> ② **`polycoef` 是常数项在前**（0.1 = offset，1.5 = multiplier）；
+> ③ **`obj1` 是从动关节**（obj1=1 是 j2，obj2=0 是 j1）。
 
 ### 3.3 MuJoCo 的 `<equality><joint>` 语义（实测，别信文档）
 
@@ -186,6 +208,9 @@ URDF 模式强制 `fusestatic=true`，而 `FuseStatic` 拒绝把质量融进 wor
 | `0 3 0 0 0` | −0.02442, −0.00814 | `q1 = 3·q2` ✔ |
 | `0 0 0 0 2` | 0.00000, −0.00342 | `q1 = 2·q2⁴` ✔ |
 | `1 0 0 0 0` | `efc_pos[0] = −0.6` | 常数项是 `data[0]` ✔ |
+
+> ⚠️ `mjtEq` 枚举里 **`mjEQ_JOINT = 2`**（不是 6）。
+> `mjEQ_FIXED=0, mjEQ_CONNECT=1, mjEQ_JOINT=2, mjEQ_TENDON=3`。
 
 ### 3.4 其他会**静默**发生的行为
 
@@ -562,23 +587,32 @@ DLR-RM 组织（~140 个仓库）里没有手相关的仓库。别让 Agent 去�
 
 ---
 
-## 10. 本机需要补的东西
+## 10. 本机的准备状态
 
 ```bash
-# 核心：MuJoCo 升到 4.0.1（为了 <mimic> 支持 + MUJOCO_GL 校验）
-python3 -m pip install "mujoco==4.0.1"
-
-# URDF / 网格分析的常用库
-python3 -m pip install trimesh yourdfpy coacd
+# ✅ 已完成（2026-11-23）
+python3 -m pip install "mujoco==4.0.1"     # 从 3.12.0 升上来；4.0 拆包了，
+                                            # 3.x 残留要 --force-reinstall --no-deps
+python3 -m pip install trimesh yourdfpy
 
 # 可选：Gazebo 的惯性读回（gz sdf --inertial-stats）
 conda create -n gzjetty -c conda-forge gz-jetty
 
 # 可选：PyBullet（DIRECT 模式，不碰 OpenGL）
-python3 -m pip install pybullet-arm64==3.2.8
+python3 -m pip install pybullet-arm64==3.2.8    # ⚠️ 没有 cp314 wheel
 ```
 
+> ⚠️ **MuJoCo 4.0 拆包**：`mujoco-core` / `mujoco-studio` / `mujoco`。
+> 从 3.x 升上来若报 `ModuleNotFoundError: No module named 'mujoco._specs'`，
+> 用 `pip install --force-reinstall --no-deps mujoco mujoco-core` 修。
+
 `check_urdf` 和 `ros2` 在 macOS 上没有 —— 报告时**写成"跳过"，不要写成"通过"**。
+
+**体检脚本**（本仓库 `checks/urdf_probe.py`）：把 MuJoCo 最容易静默吃掉的东西显式查出来。
+
+```bash
+MUJOCO_GL=disable python3 checks/urdf_probe.py robot.urdf
+```
 
 ---
 

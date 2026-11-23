@@ -33,7 +33,7 @@
 | 第一个完整案例 | ✅ [`examples/robotiq-v-finger`](examples/robotiq-v-finger/README.md)（Robotiq 2F-85 夹爪 V 型槽指尖逆向），**已迁到新 API，几何零差异** |
 | 升级到 0.11 | ✅ 已执行，方案与实际结果见 [`docs/05-升级到0.11.md`](docs/05-升级到0.11.md) |
 | 出图验证 | ✅ OCCT 无头渲染本机可用，**0.07～2 秒出图，不用浏览器不用 GPU** |
-| URDF / 机器人工作流 | ⬜ 下一块拼图。0.11 的 `cad model ranges <id>` 能从几何自动推关节限位，`cad model export` 能从 CAD 直接出 URDF |
+| URDF / 机器人工作流 | ✅ 工具链已备齐（MuJoCo 4.0.1 + trimesh + yourdfpy），方法论见 [`docs/06-机器人描述与URDF.md`](docs/06-机器人描述与URDF.md)。⬜ **还没实际跑一个 URDF** |
 | GUI 建模软件（Blender / FreeCAD） | ⬜ 待装，但现在**不需要** |
 
 一句话结论：**机械件走「代码参数化」路线，AI 生成网格那条路在 Mac 上不划算。**
@@ -83,6 +83,8 @@ agent-3d-lab/
 │   └── robotiq-v-finger/         # 第一个完整案例：厂商件逆向重建
 ├── templates/
 │   └── cad-project/              # 新 CAD 项目脚手架
+├── checks/
+│   └── urdf_probe.py             # URDF 体检：揪出 MuJoCo 静默吃掉的 base link 质量等
 ├── scripts/
 │   └── doctor.sh                 # 环境自检
 └── .github/                      # issue / PR 模板
