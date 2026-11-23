@@ -7,7 +7,7 @@ cp -R templates/cad-project projects/my-part
 cd projects/my-part
 ```
 
-目录约定遵循 `cad` skill 的 [project-layout](../docs/03-工作流速查.md)：
+目录约定遵循 `cad` skill 的 [project-layout](../../docs/03-工作流速查.md)：
 
 ```
 <project>/

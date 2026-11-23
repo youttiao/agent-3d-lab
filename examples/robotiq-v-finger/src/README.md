@@ -42,4 +42,4 @@ cad run checks/compare_steps.py A.step B.step   # 比对两个 STEP 的几何
 几何完全一致：`checks/compare_steps.py` 对三个模型逐一比对，
 零件数、包围盒、标签集合全部相同，尺寸差 **0.000000 mm**。
 
-API 变化见 [`../../agent-3d-lab/docs/05-升级到0.11.md`](../../agent-3d-lab/docs/05-升级到0.11.md)。
+API 变化见 [`docs/05-升级到0.11.md`](../../../docs/05-升级到0.11.md)。

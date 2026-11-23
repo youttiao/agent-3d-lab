@@ -9,6 +9,9 @@
 > 目标读者：想用 Agent 做三维、但没做过的工程师。
 > 文档用中文写，代码和标识符用英文。
 
+> 📍 **新开 session / 第一次来**：先看 [`docs/00-从这里开始.md`](docs/00-从这里开始.md)
+> —— 五分钟知道这是什么、做到哪了、下一步干什么、哪些坑别再踩。
+
 ---
 
 ## 为什么会有这个仓库
@@ -88,6 +91,7 @@ cp -R templates/cad-project projects/my-part
 agent-3d-lab/
 ├── README.md                     # 你在读的这份
 ├── docs/
+│   ├── 00-从这里开始.md           # ★ 入口：五分钟上手 / 文档地图 / 五条硬规矩 / 欠着的活
 │   ├── 01-技术路线全景.md         # 调研：现在业界有哪几条路，各自到什么程度
 │   ├── 02-本机工具链.md           # 本机装了什么、还缺什么、怎么补
 │   ├── 03-工作流速查.md           # 建模 / 看图 / 分析 / URDF 的标准动作
@@ -100,6 +104,8 @@ agent-3d-lab/
 ├── examples/
 │   ├── robotiq-v-finger/         # 案例一：厂商件逆向重建（Robotiq 2F-85 V 型槽指尖）
 │   └── gripper-mechanism/        # 案例二：CAD → URDF → MuJoCo 全流程（两指夹爪机构）
+├── research/
+│   └── raw/                      # 调研原始档案（底稿：四份未经改写的报告）
 ├── templates/
 │   └── cad-project/              # 新 CAD 项目脚手架
 ├── checks/
