@@ -27,21 +27,21 @@
 
 | | 状态 |
 | --- | --- |
-| 核心工具链 | ✅ 已就绪，本机不用再装就能开工（`cadgen` + `build123d` + playwright/chromium） |
-| CAD skill 套件 | ⚠️ 装了 13 个，但**落后上游五个版本家族**（0.6.6 vs 0.11.16），命令已改名 `cadgen`→`cad` |
+| 核心工具链 | ✅ **已升级到 text-to-cad 0.11.16**，本机不用再装就能开工 |
+| CAD skill 套件 | ✅ 新版 8 个（`cad` `robot-simulation` `fea` `pcb` `print3d` `render` `engineering-drawing` `sendcutsend`），旧的 13 个已并入 |
 | 调研文档 | ✅ 见 [`docs/01-技术路线全景.md`](docs/01-技术路线全景.md) |
-| 第一个完整案例 | ✅ [`examples/robotiq-v-finger`](examples/robotiq-v-finger/README.md)（Robotiq 2F-85 夹爪 V 型槽指尖逆向） |
-| 升级到 0.11 | 📋 方案已写好，见 [`docs/05-升级到0.11.md`](docs/05-升级到0.11.md) —— **会砸掉现有项目代码，要手工改** |
-| URDF / 机器人工作流 | ⬜ 下一块拼图。**0.11 新增了 CAD→URDF/MJCF 自动生成和关节限位自动推导**，升级后才用得上 |
+| 第一个完整案例 | ✅ [`examples/robotiq-v-finger`](examples/robotiq-v-finger/README.md)（Robotiq 2F-85 夹爪 V 型槽指尖逆向），**已迁到新 API，几何零差异** |
+| 升级到 0.11 | ✅ 已执行，方案与实际结果见 [`docs/05-升级到0.11.md`](docs/05-升级到0.11.md) |
+| 出图验证 | ✅ OCCT 无头渲染本机可用，**0.07～2 秒出图，不用浏览器不用 GPU** |
+| URDF / 机器人工作流 | ⬜ 下一块拼图。0.11 的 `cad model ranges <id>` 能从几何自动推关节限位，`cad model export` 能从 CAD 直接出 URDF |
 | GUI 建模软件（Blender / FreeCAD） | ⬜ 待装，但现在**不需要** |
 
 一句话结论：**机械件走「代码参数化」路线，AI 生成网格那条路在 Mac 上不划算。**
 完整理由见 [`docs/01`](docs/01-技术路线全景.md)。
 
-> **最重要的一个发现**：上游 text-to-cad 已经在做我们现在想做的事——
-> 从 CAD 模型自动生成 URDF/MJCF，自动推导关节限位，
-> 并跟 MuJoCo Menagerie 和厂商原版做对比（`models/mujoco/`）。
-> 我们本机这版（0.6.5）完全没有这些能力。
+> **调研里最大的不确定项已经落地**：macOS 的 OpenGL 从 10.14 起就废弃了，
+> OCCT 8 自带的无头光栅器能不能在无头 arm64 上初始化，原本没人验证过。
+> **本机实测：能。** 1600×1200 出图 0.07～2 秒。
 
 ---
 
@@ -53,11 +53,10 @@ bash scripts/doctor.sh
 
 # 2. 跑一遍示例
 cd examples/robotiq-v-finger
-python src/robotiq_v_finger.py              # 生成 STEP
-cadgen step snapshot STEP/robotiq_v_finger.step tmp/finger.png
+cad run src/robotiq_v_finger.py          # 生成 STEP，并打印 id 和浏览器 view 链接
+cad step snapshot STEP/robotiq_v_finger.step tmp/finger.png   # 出图，1～2 秒
 
-# 3. 起本地查看器，浏览器里转着看
-cd ~/100-Vibe/3D-stp && cadgen viewer --host 127.0.0.1 --json
+# 3. 想交互看：浏览器打开上面打印的 view 链接
 ```
 
 新开一个 CAD 项目：
@@ -94,8 +93,8 @@ agent-3d-lab/
 
 | 阶段 | 做什么 | 状态 |
 | --- | --- | --- |
-| ① 摸地形 | 盘点本机、调研业界、建仓 | ✅ 本次完成 |
-| ② 升级 | 升到 text-to-cad 0.11，迁移 Robotiq 案例 | ⬜ 待办 |
+| ① 摸地形 | 盘点本机、调研业界、建仓 | ✅ 完成 |
+| ② 升级 | 升到 text-to-cad 0.11，迁移 Robotiq 案例 | ✅ **已完成**，几何零差异 |
 | ③ 接机器人 | 用新能力做一次「CAD → URDF → MuJoCo → 对比」 | ⬜ 待办 |
 | ④ 真活① | 标定支架的 A/B 两方案参数化建模 + 数字对比 | ⬜ 待办 |
 | ⑤ 真活② | MicroDuck 关节限位逐条对回 XL330 舵机规格 | ⬜ 待办 |
@@ -119,9 +118,9 @@ gh repo edit youttiao/agent-3d-lab --visibility public
 | 环节 | 谁做 | 产物 |
 | --- | --- | --- |
 | 建模 | Agent 写 build123d Python 脚本 | 可编辑、可复算的 STEP |
-| 分析厂商件 | Agent 调 `read_step` 读场景树和包围盒 | 尺寸表 |
+| 分析厂商件 | Agent 调 `step.read()` + `leaves()` | 尺寸表 |
 | 验证 | 内核算完 → **人看渲染图** | PNG |
-| 机器人描述 | Agent 直接编辑 URDF XML | `.urdf` + 校验通过 |
+| 机器人描述 | 从 CAD 模型导出，或手写 URDF | `.urdf` + `cad urdf validate` 通过 |
 
 关键前提：**几何由内核算，结论靠看图。**
 尺寸对不代表形状对，每改一次就要出一张图看。
@@ -132,12 +131,14 @@ gh repo edit youttiao/agent-3d-lab --visibility public
 
 ## 本机环境速记
 
-macOS (Apple Silicon) · Python 3.14.6 · 已装 `cadgen 0.6.5` / `build123d 0.11.1` /
-`ezdxf 1.4.4` / `playwright 1.63.0`(+chromium) / `uv` / `node` / `gh` / `mujoco`。
+macOS (Apple Silicon) · **text-to-cad 0.11.16**（uv tool 装在 `~/.local/bin/cad`）·
+`build123d 0.13.0` + `cadquery-ocp-novtk 8.0.1.1`（跑在 `~/.cache/cad/base/` 的内核环境里）·
+`uv 0.13.9` / `node` / `gh` / `mujoco`。
 
 日常开工作区：
-- `~/100-Vibe/3D-stp` —— CAD 项目（skill 装在这里）
+- `~/100-Vibe/3D-stp` —— CAD 项目（已迁到 0.11）
 - `~/100-Vibe/dex-hand` —— 机器人方向
+- `~/100-Vibe/3D-stp.bak-0.6.5` —— 升级前完整备份
 
 ---
 

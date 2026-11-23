@@ -11,14 +11,14 @@ Layout (mm):
   Fingers  X[+20,+60]  Y[±15,±25] (demo open +15mm per finger, full travel 30mm)
   V-groove at finger inner face: 20mm long × 8mm wide × 3mm deep
 
-Note: build123d 0.11 Box defaults to align=CENTER (centered on origin),
+Note: build123d 0.13 Box defaults to align=CENTER (centered on origin),
 so we set align=(CENTER, CENTER, MIN) for the Z-axis datum to sit on Z=0.
 """
 
 from __future__ import annotations
 
-from cadgen import build123d as bd
-from cadgen import step
+import build123d as bd
+from cad import step
 
 
 # === Dimensions (mm) ===
@@ -40,7 +40,14 @@ FINGER_Z0 = FLANGE_H                                # 5
 FINGER_Z_MID = FLANGE_H + FINGER_H / 2.0            # 14
 V_X_CENTER = FINGER_X0 + FINGER_L / 2.0             # 40
 
-_BOX_XY = (bd.Align.CENTER, bd.Align.CENTER, bd.Align.MIN)
+
+def _box_xy():
+    """Align tuple — read inside a body, never at module level.
+
+    Reading bd.Align at import time loads the CAD kernel in the script's own
+    process (2–3 s on every run, a run that rebuilds nothing included).
+    """
+    return (bd.Align.CENTER, bd.Align.CENTER, bd.Align.MIN)
 
 
 def _v_cutter(sign: int) -> bd.Shape:
@@ -79,24 +86,24 @@ def _add_mount_holes(target: bd.Shape) -> bd.Shape:
     return target
 
 
-@step(out="../STEP/gripper.step")
+@step("../STEP/gripper.step")
 def gripper():
     parts = []
 
     # --- Flange: X[-20,+20], Y[-20,+20], Z[0,5] ---
-    flange = bd.Box(FLANGE_L, FLANGE_W, FLANGE_H, align=_BOX_XY)
+    flange = bd.Box(FLANGE_L, FLANGE_W, FLANGE_H, align=_box_xy())
     flange = _add_mount_holes(flange)
     flange.label = "flange"
     parts.append(flange)
 
     # --- Body: X[-20,+20], Y[-5,+5], Z[5,25] ---
-    body = bd.Box(BODY_L, BODY_W, BODY_H, align=_BOX_XY)
+    body = bd.Box(BODY_L, BODY_W, BODY_H, align=_box_xy())
     body = bd.Pos(0.0, 0.0, FLANGE_H) * body
     body.label = "body"
     parts.append(body)
 
     # --- Right finger: X[+20,+60], Y[+15,+25], Z[+5,+23] ---
-    rf = bd.Box(FINGER_L, FINGER_W, FINGER_H, align=_BOX_XY)
+    rf = bd.Box(FINGER_L, FINGER_W, FINGER_H, align=_box_xy())
     rf = bd.Pos(V_X_CENTER, DEMO_OPEN + FINGER_W / 2.0, FINGER_Z0) * rf
     vc_r = bd.Pos(V_X_CENTER, DEMO_OPEN, FINGER_Z_MID) * _v_cutter(+1)
     rf = rf - vc_r
@@ -104,7 +111,7 @@ def gripper():
     parts.append(rf)
 
     # --- Left finger: X[+20,+60], Y[-25,-15], Z[+5,+23] ---
-    lf = bd.Box(FINGER_L, FINGER_W, FINGER_H, align=_BOX_XY)
+    lf = bd.Box(FINGER_L, FINGER_W, FINGER_H, align=_box_xy())
     lf = bd.Pos(V_X_CENTER, -DEMO_OPEN - FINGER_W / 2.0, FINGER_Z0) * lf
     vc_l = bd.Pos(V_X_CENTER, -DEMO_OPEN, FINGER_Z_MID) * _v_cutter(-1)
     lf = lf - vc_l

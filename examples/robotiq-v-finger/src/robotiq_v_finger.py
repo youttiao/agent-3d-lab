@@ -17,8 +17,8 @@ For the LEFT finger, mirror about the YZ plane: V opens in -X.
 
 from __future__ import annotations
 
-from cadgen import build123d as bd
-from cadgen import step
+import build123d as bd
+from cad import step
 import math
 
 # Lazy bd attribute access — avoid touching the kernel at import time.
@@ -123,7 +123,7 @@ def _pipe_sample(y_extra: float = 2.0) -> bd.Shape:
     return pipe
 
 
-@step(out="../STEP/robotiq_v_finger.step")
+@step("../STEP/robotiq_v_finger.step")
 def v_finger_pair():
     """Right + left V-fingers + a DN25 pipe sample for context."""
     # Spread the two fingers so the pipe sits tangent to both V walls.
@@ -145,7 +145,7 @@ def v_finger_pair():
     return bd.Compound(children=[rf, lf, pipe], label="robotiq_v_finger_pair")
 
 
-@step(out="../STEP/robotiq_v_finger_single.step")
+@step("../STEP/robotiq_v_finger_single.step")
 def single_finger_with_pipe():
     """One right-hand finger + a tangent DN25 pipe — for V-profile visualization."""
     half_pitch = (V_DEPTH - MOUNT_W / 2.0) + PIPE_R / math.sin(V_HALF_ANGLE)

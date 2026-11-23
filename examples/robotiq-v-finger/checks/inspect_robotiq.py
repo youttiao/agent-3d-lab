@@ -1,42 +1,75 @@
-"""Inspect Robotiq STEP files — try multiple cadgen APIs."""
+"""Inspect the vendor Robotiq STEP files.
+
+Reading a STEP file: `step.read(path)` gives a build123d tree, and
+`cad.build123d.leaves(tree)` gives every part placed where it stands in the
+tree's frame (a leaf carries its own label, colour and material).
+
+Run from the project root:
+
+    cad run checks/inspect_robotiq.py
+"""
+
+# /// script
+# dependencies = ["cad[build123d]"]
+# ///
+
+from __future__ import annotations
+
 from pathlib import Path
-import os
+
+from cad import step
+from cad.build123d import leaves
 
 ROOT = Path(__file__).resolve().parent.parent
-os.chdir(ROOT)
+IMPORTED = ROOT / "imported"
 
-from cadgen import read_scene, read_step
+FILES = ("robotiq_2f85_body.step", "robotiq_2f85_fingertip.step")
 
-for name in ("robotiq_2f85_body.step", "robotiq_2f85_fingertip.step"):
-    p = ROOT / "imported" / name
-    if not p.exists():
-        print(p, "MISSING"); continue
-    print(f"\n=== {name} (size={p.stat().st_size}) ===")
-    try:
-        scene = read_scene(str(p))
-        print(f"  scene type: {type(scene).__name__}")
-        for attr in ("occurrences", "shapes", "components", "products", "labels", "tree"):
-            if hasattr(scene, attr):
-                v = getattr(scene, attr)
-                try:
-                    n = len(v)
-                except Exception:
-                    n = "?"
-                print(f"  .{attr}() -> {n}")
-        # Try reading bbox from native shapes
-        if hasattr(scene, "shapes"):
-            shapes = scene.shapes()
-            print(f"  shapes count: {len(shapes)}")
-            for i, s in enumerate(shapes[:5]):
-                try:
-                    bb = s.bounding_box()
-                    mn, mx, sz = bb.min, bb.max, bb.size
-                    print(f"    shape[{i}] bbox min=({mn.X:.1f},{mn.Y:.1f},{mn.Z:.1f}) "
-                          f"max=({mx.X:.1f},{mx.Y:.1f},{mx.Z:.1f}) "
-                          f"size=({sz.X:.1f},{sz.Y:.1f},{sz.Z:.1f})")
-                except Exception as e:
-                    print(f"    shape[{i}] bbox err: {e}")
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        print(f"  ERR: {e}")
+
+def describe(path: Path) -> None:
+    print(f"\n=== {path.name} (size={path.stat().st_size:,} bytes) ===")
+    tree = step.read(str(path))
+    parts = leaves(tree)
+    print(f"  leaves: {len(parts)}")
+
+    lo = [float("inf")] * 3
+    hi = [float("-inf")] * 3
+    for i, part in enumerate(parts):
+        bb = part.bounding_box()
+        mn, mx, sz = bb.min, bb.max, bb.size
+        print(
+            f"    [{i:2d}] {part.label or '(no label)':<28} "
+            f"min=({mn.X:8.2f},{mn.Y:8.2f},{mn.Z:8.2f}) "
+            f"max=({mx.X:8.2f},{mx.Y:8.2f},{mx.Z:8.2f}) "
+            f"size=({sz.X:8.2f} × {sz.Y:8.2f} × {sz.Z:8.2f})"
+        )
+        for axis, v in enumerate((mn.X, mn.Y, mn.Z)):
+            lo[axis] = min(lo[axis], v)
+        for axis, v in enumerate((mx.X, mx.Y, mx.Z)):
+            hi[axis] = max(hi[axis], v)
+
+    if parts:
+        print(
+            f"  overall bbox: {hi[0] - lo[0]:.2f} × {hi[1] - lo[1]:.2f} × "
+            f"{hi[2] - lo[2]:.2f} mm   "
+            f"(min=({lo[0]:.2f},{lo[1]:.2f},{lo[2]:.2f}) max=({hi[0]:.2f},{hi[1]:.2f},{hi[2]:.2f}))"
+        )
+
+
+def main() -> None:
+    for name in FILES:
+        p = IMPORTED / name
+        if not p.exists():
+            print(f"{p} — MISSING（厂商件需自行从 Robotiq 官网下载）")
+            continue
+        try:
+            describe(p)
+        except Exception as exc:  # noqa: BLE001 — a check prints, it does not raise
+            import traceback
+
+            traceback.print_exc()
+            print(f"  ERR: {exc}")
+
+
+if __name__ == "__main__":
+    main()

@@ -46,9 +46,16 @@ V_BLOCK_THICK   = V_DEPTH + 8.0     # 槽背后至少留 8 mm 壁，不然没材
 
 ```bash
 cd examples/robotiq-v-finger
-python src/robotiq_v_finger.py          # 重新生成 STEP
-cadgen step snapshot STEP/robotiq_v_finger.step tmp/finger.png
-cadgen viewer --host 127.0.0.1 --json   # 起本地查看器（从项目根起）
+
+# 重建 STEP（顺带打印 id 和浏览器 view 链接）
+cad run src/robotiq_v_finger.py
+
+# 出图（OCCT 无头渲染，1～2 秒，不用浏览器）
+cad step snapshot STEP/robotiq_v_finger.step tmp/finger.png
+cad step snapshot STEP/robotiq_v_finger.step tmp/top.png --camera top
+
+# 起本地查看器，浏览器里转着看
+cad run src/robotiq_v_finger.py     # 抄它打印的 view 链接
 ```
 
 已生成的渲染图在 `img/`：
@@ -59,7 +66,24 @@ cadgen viewer --host 127.0.0.1 --json   # 起本地查看器（从项目根起�
 | `v_finger_front.png` | 正面（看 V 槽开口宽度） |
 | `v_finger_side.png` | 侧视（看 38 mm 指轨长度和 V 深度） |
 | `v_finger_top.png` | 俯视（看 M3 孔与定位销布局） |
+| `single_iso.png` / `single_top.png` | 单指 + 管道的断面关系 |
 | `gripper_*.png` | 另一套演示夹爪的四视图 |
+
+## 迁移记录（0.6.5 → 0.11.16）
+
+本案例 2026-11-23 从 text-to-cad 0.6.5 迁到 0.11.16。改动只有三处 API：
+
+```python
+# 旧                                    # 新
+from cadgen import build123d as bd   →   import build123d as bd
+from cadgen import step              →   from cad import step
+@step(out="../STEP/x.step")          →   @step("../STEP/x.step")
+```
+
+读文件同理：`read_scene(p)` / `read_step(p)` → `step.read(p)` + `cad.build123d.leaves(tree)`。
+
+**几何零差异**——`checks/compare_steps.py` 逐个比对三个模型，
+零件数、包围盒、标签集合全同，尺寸差 **0.000000 mm**。
 
 ## 厂商件为什么不在库里
 
@@ -68,12 +92,31 @@ cadgen viewer --host 127.0.0.1 --json   # 起本地查看器（从项目根起�
 厂商原件请自行从 Robotiq 官网下载后放到 `imported/`。
 
 `checks/inspect_robotiq.py` 就是用来读这两个厂商件的：
-它会打印场景结构、每个 shape 的包围盒，方便核对我们的重建件和原件对不对得上。
 
 ```bash
 cd examples/robotiq-v-finger
-python checks/inspect_robotiq.py
+cad run checks/inspect_robotiq.py
 ```
+
+实测输出（2026-11-23）：
+
+```
+=== robotiq_2f85_body.step (size=20,640,977 bytes) ===
+  leaves: 11
+    [ 0] NAUO1    size=( 84.89 × 93.40 × 75.00)
+    ...
+    [ 5] NAUO6    size=( 19.16 × 38.00 × 22.00)   ← 硅胶指尖
+    [10] NAUO11   size=( 19.16 × 38.00 × 22.00)   ← 硅胶指尖
+  overall bbox: 152.48 × 152.74 × 75.00 mm
+
+=== robotiq_2f85_fingertip.step (size=175,396 bytes) ===
+  leaves: 1
+    [ 0] C-083-PAD_SURMOULE_85_defeature  size=( 22.00 × 38.00 × 19.16)
+```
+
+**交叉印证**：厂商 body 上的两片硅胶指尖是 38.00 mm 长，
+独立指尖件也是 38.00 mm 长、22.00 mm 宽——
+和当初逆向重建时定的 `MOUNT_L = 38.0` / `MOUNT_W = 22.0` 完全对上。
 
 ## 这个案例想说明什么
 

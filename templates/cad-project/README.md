@@ -23,17 +23,17 @@ cd projects/my-part
 `src/plate.py`：
 
 ```python
-from cadgen import build123d as bd
-from cadgen import step
+from __future__ import annotations
+
+import build123d as bd
+from cad import step
 
 WIDTH = 60.0
-DEPTH = 40.0
-THICKNESS = 4.0
 
 
-@step(out="../STEP/plate.step")
+@step("../STEP/plate.step")
 def plate():
-    body = bd.Box(WIDTH, DEPTH, THICKNESS)
+    body = bd.Box(WIDTH, 40, 4)
     body.label = "plate"
     return body
 
@@ -45,18 +45,29 @@ if __name__ == "__main__":
 ## 三条命令跑通一轮
 
 ```bash
-python src/plate.py                                    # 生成 STEP
-cadgen step snapshot STEP/plate.step tmp/plate.png     # 出图看
-cadgen viewer --host 127.0.0.1 --json                  # 起本地查看器
+cad run src/plate.py                                # 生成 STEP（随 run 写出）
+cad model snapshot <id> tmp/plate.png               # 出图（OCCT 无头渲染，1～2 秒）
+cad run src/plate.py                                # 打印文档 id 与浏览器 view 链接
 ```
 
-> **踩坑预警**：`build123d` 的 `Box` 默认 `align=CENTER`（几何中心在原点），
-> 不是 `MIN`。想让底面贴在 Z=0，写 `align=(Align.CENTER, Align.CENTER, Align.MIN)`。
-> 这是 `cad` skill 里专门写出来的一条，说明它坑过不少人。
+> `cad run` 会打印一行 `id: <uuid>` 和一行 `view: http://127.0.0.1:3245/<id>?token=…`，
+> **浏览器打开那个 view 链接**就能交互查看（转、剖、爆炸）。
+> 纯看图不用开浏览器：`cad step snapshot STEP/plate.step tmp/plate.png`。
 
 ## 命名约定
 
 - 单位一律毫米（mm），坐标系 XY 平面 + Z 向上
 - 源文件名与输出文件同名：`src/plate.py` → `STEP/plate.step`
-- 装饰器 `out=` 路径**相对脚本本身**，不是相对 cwd
-- 一个 `.py` 一个模型入口；公共几何写成普通工厂函数，不要塞进装饰函数
+- `@step("../STEP/x.step")` 里的路径**相对脚本本身**，不是相对 cwd
+- 一个 `.py` 一个模型入口；公共几何写成普通工厂函数
+- **内核对象只在函数体里读**：`bd.Align.CENTER` 写在模块层会让脚本自己的进程
+  也加载内核，每次 run 多花 2～3 秒
+
+## 坑位速记
+
+| 坑 | 说明 |
+| --- | --- |
+| `Box` 默认 `align=CENTER` | 几何中心在原点，不是 `MIN`。底面贴 Z=0 要显式写 |
+| `out=` 没了 | 0.8 起 `@step(out=…)` 改成 `@step(…)` 位置参数 |
+| `read_scene` 没了 | 0.8 起用 `step.read(path)` + `cad.build123d.leaves(tree)` |
+| `from cadgen import build123d` 会炸 | 0.8 起 `build123d` 这个名字从 `cadgen` 里拿掉了，改成 `import build123d as bd` |
