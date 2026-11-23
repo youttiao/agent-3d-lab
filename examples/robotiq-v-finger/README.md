@@ -18,6 +18,30 @@
 | ③ 参数化重建 | build123d 写 `src/robotiq_v_finger.py`，尺寸全部提成常量 | `STEP/robotiq_v_finger.step` |
 | ④ 验证 | `cadgen step snapshot` 出多视角 PNG，人眼核对 | `img/` |
 | ⑤ 顺带 | 另写一个 Festo 风格的演示两指夹爪 `src/gripper.py` | `STEP/gripper.step` |
+| ⑥ 量几何 | 写 `checks/check_v_pair.py` 量管子和手指的关系 | 三个真 bug（见下） |
+
+## ⚠️ 量出来的三个 bug（2026-11-23）
+
+**这一节是本案例最值钱的部分。** 上面那个流程跑通了，尺寸表也对，
+但「尺寸对」不等于「形状对」——这三个 bug 是**靠量出来的，不是靠看出来的**：
+
+| # | bug | 怎么发现的 | 后果 |
+| --- | --- | --- | --- |
+| 1 | V 槽的截面画在 `Plane.XY` 上，但顶点的 z 分量是槽口高度 | `check_v_pair.py` 量出管子与手指的最小距离 **1.3345 mm**（应为 0） | 槽沿 Z 挤而不是沿 Y，管子根本没卡进槽里 |
+| 2 | 右指的 V 开口朝 +X，**背离**夹爪中线 | 同上（量 apex 到管心的距离） | 右手的槽和左手的槽对着开，中间的空腔是「V 对 V」而不是「V 对圆」 |
+| 3 | 文档里写的 5 mm 安装轨**根本没建**，M3 孔是盲孔 | 数包围盒高度 | 装不上 |
+
+修完之后：
+
+```
+管子 vs 右指 rf: 公共体积 = 0.0 mm^3   最小距离 = 0.0000 mm   ✅ 不穿模
+管子 vs 左指 lf: 公共体积 = 0.0 mm^3   最小距离 = 0.0000 mm   ✅ 不穿模
+apex 到管心的距离 = 23.3345（应为 R/sin(半角) = 23.3345）  ✅
+```
+
+**教训**：写完 CAD 立刻写一个「量」的脚本，别等肉眼发现。
+本仓库现在有两个通用体检脚本：`checks/urdf_probe.py`（URDF）和
+`checks/joint_sweep.py`（关节）。
 
 ## 关键设计
 
@@ -63,11 +87,15 @@ cad run src/robotiq_v_finger.py     # 抄它打印的 view 链接
 | 图 | 看什么 |
 | --- | --- |
 | `v_finger_iso.png` | 整体等轴视角 |
-| `v_finger_front.png` | 正面（看 V 槽开口宽度） |
+| `v_finger_front.png` | 正面 —— **两个 V 槽相对，DN25 管子正好卡在中间**（修好之后的样子） |
 | `v_finger_side.png` | 侧视（看 38 mm 指轨长度和 V 深度） |
 | `v_finger_top.png` | 俯视（看 M3 孔与定位销布局） |
 | `single_iso.png` / `single_top.png` | 单指 + 管道的断面关系 |
 | `gripper_*.png` | 另一套演示夹爪的四视图 |
+
+> ⚠️ `cad step snapshot --camera` 的预设只有
+> `back / bottom / front / iso / left / right / top` —— **没有 `side`**。
+> 侧视要用 `--camera right`（从 +X 看）。
 
 ## 迁移记录（0.6.5 → 0.11.16）
 
@@ -127,10 +155,13 @@ cad run checks/inspect_robotiq.py
 3. **出图是必须的验证环节** —— 尺寸对不代表形状对，
    每次改完必须 `snapshot` 出一张图看。
 4. **尺寸全部提成常量** —— 别人接手时不用读几何代码就能改。
+5. **更要紧的是「量」** —— 尺寸表对了、图看着也不一定对。
+   三个 bug 全是靠 `check_v_pair.py` 量出来的。
 
 ## 已知不足 / 下一步
 
-- 目前只做了单指，没做双指装配体的干涉检查（`src/gripper.py` 是独立的演示件）
 - V 槽没有做沟底圆角和排屑设计
 - 没出 STL / 3MF，也没做可打印性检查（`dfam-check` skill 能做）
-- 没写 URDF —— 这正是下一块拼图：夹爪作为机械臂末端要进 URDF
+- 双指装配体的干涉检查和 URDF 导出在
+  [`gripper-mechanism`](../gripper-mechanism/) 案例里做了 ——
+  这个案例只做单指

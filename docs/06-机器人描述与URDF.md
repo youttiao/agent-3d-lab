@@ -144,9 +144,15 @@ parts = coacd.run_coacd(m, threshold=0.005, real_metric=True,
 
 ## 3. MuJoCo 的坑（**本机相关，都验证过**）
 
-### 3.1 ⚠️ URDF 模式下 **base link 的质量被静默丢弃**
+### 3.1 ⚠️ URDF 模式下 **固定在 world 上的体，质量被静默丢弃**
 
 URDF 模式强制 `fusestatic=true`，而 `FuseStatic` 拒绝把质量融进 world。
+
+> ⚠️ **不要只记住「base link」。**
+> 丢的不是「base link」这**一个** link，是**所有固定在 world 上的体**。
+> 2026-11-23 的夹爪实测里，base link 是空的（0 kg），
+> 真正被丢的是**掌板**——它固定在 world 上，于是 0.75 kg 直接消失。
+> 一个整机 URDF 里的配重块（电池、配重、传感器）全都会这样。
 
 **修法**：在 URDF 里加
 
@@ -169,6 +175,66 @@ URDF 模式强制 `fusestatic=true`，而 `FuseStatic` 拒绝把质量融进 wor
 > ⚠️ base link 的 1.0000 kg 被静默丢弃了
 > ```
 > 用 `checks/urdf_probe.py` 可以一键查出来（它会自动对比两种模式）。
+
+> ✅ **夹爪实测（同日）**：URDF 声明 0.81 kg，MuJoCo 加载后只剩 **0.06 kg** —— 丢了 93%。
+> 而 `cad urdf validate` 报的是 `total mass 0.81 kg`（它看的是 URDF 文件本身，
+> 看不到加载之后发生的事）。**校验器查不出这一类问题。**
+
+### 3.1b ⚠️ URDF 模式下 `<mujoco>` 扩展块**只认 `<compiler>` 的属性**
+
+MuJoCo 允许在 URDF 里塞一个 `<mujoco>` 块来调 MuJoCo 专属设置。
+但 4.0.1 实测下来，**只有 `<compiler>` 的属性会被读**，其余静默忽略：
+
+| 塞进 `<mujoco>` 的 | 生效？ |
+| --- | --- |
+| `<compiler fusestatic="false"/>` | ✅ |
+| `<compiler boundmass="0.5"/>` / `meshdir` / `autolimits` / `angle` | ✅ |
+| `<option>` `<size>` `<visual>` | ❌ 静默忽略 |
+| `<contact><exclude/></contact>` | ❌ 静默忽略 |
+| `<equality>` `<worldbody>` `<actuator>` | ❌ 静默忽略 |
+| 一个**根本不存在的标签** | ❌ 静默忽略（连乱写的都不报错） |
+
+**这条很要紧**：很多教程教你用 `<mujoco><contact><exclude …/></contact></mujoco>`
+来修 URDF 的接触问题 —— 在 MuJoCo 4.0.1 上它**不报错，也不生效**。
+
+### 3.1c ⚠️ URDF **没有**「这两件不碰」的语法
+
+并行夹爪、导轨滑块这类机构，手指本来就贴在掌板上。
+MJCF 有 `<exclude>`，导出器会自动加：
+
+```xml
+<contact>
+  <exclude body1="palm" body2="finger_right"/>
+  <exclude body1="palm" body2="finger_left"/>
+</contact>
+```
+
+URDF **完全没有这个概念**。实测静置时的接触数：MJCF 0 个，URDF 6 个
+（掌板 × 每根手指，间距全为 0）。
+
+后果不是「多算一点接触力」，是**机构动不了**：默认 μ=1，
+0.5 N 的驱动力被摩擦直接抵消，60 步只移动 0.64 mm（MJCF 版本是 13.2 mm）。
+
+> **结论：给 MuJoCo 用 MJCF，给 ROS 用 URDF。**
+> 只剩 URDF 时只能靠改几何让两者错开 —— 见 [`07-CAD到URDF到MuJoCo.md`](07-CAD到URDF到MuJoCo.md)。
+
+### 3.1d ⚠️ URDF 的 `<visual>` / `<collision>` 在 MuJoCo 里**塌成一个**
+
+URDF 允许每个零件写两套几何（5 个 `<visual>` + 5 个 `<collision>`），
+MuJoCo 的 URDF 加载器按名字去重 → 只生成 **5 个 geom**，一个零件一个碰撞几何。
+MJCF 里是分开的（视觉组 `contype=0 conaffinity=0`，碰撞组正常）。
+
+**后果**：一份 URDF 在 MuJoCo 里没法给同一个零件不同的视觉和碰撞形状。
+
+### 3.1e ⚠️ 关节等式和关节限位**都是软约束**
+
+| | 行为 |
+| --- | --- |
+| `<mimic>` / `<equality><joint>` | 软约束。稳态有残差（实测 0.26 mm @ MJCF、0.41 mm @ URDF）。要更硬调 `solref[0]`（建模指南建议 0.004～0.01） |
+| 关节限位 | 软约束。`mj_forward` **不报错也不夹回**：把 qpos 直接设成 `-0.011835`（超限），右指照样在那个位置 |
+
+> 做行程校核时不能指望 MuJoCo 帮你挡住越界值 —— 得自己查。
+
 
 ### 3.2 ⚠️ MuJoCo **4.0 之前静默忽略 URDF 的 `<mimic>`**
 
@@ -614,6 +680,14 @@ python3 -m pip install pybullet-arm64==3.2.8    # ⚠️ 没有 cp314 wheel
 MUJOCO_GL=disable python3 checks/urdf_probe.py robot.urdf
 ```
 
+**关节扫描脚本**（本仓库 `checks/joint_sweep.py`）：
+量关节的世界轴向、镜像是否对称、钳口开度、联动残差、限位行为。
+MJCF 和 URDF 各扫一遍，两边的数字应该逐位一致。
+
+```bash
+MUJOCO_GL=disable python3 checks/joint_sweep.py
+```
+
 ---
 
 ## 链接
@@ -628,3 +702,11 @@ MUJOCO_GL=disable python3 checks/urdf_probe.py robot.urdf
 - [dexsuite/dex-urdf](https://github.com/dexsuite/dex-urdf) ★389
 - [shadow-robot/sr_common](https://github.com/shadow-robot/sr_common)
 - [robot_descriptions.py](https://github.com/robot-descriptions/robot_descriptions.py) ★851
+
+---
+
+## 相关文档
+
+- [`07-CAD到URDF到MuJoCo.md`](07-CAD到URDF到MuJoCo.md) —— 一次端到端的实测记录，
+  含 MJCF/URDF 的分工建议、镜像为什么靠关节轴、两个 MuJoCo 的 API 细节
+

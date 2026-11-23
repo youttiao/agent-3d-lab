@@ -30,10 +30,10 @@
 | 核心工具链 | ✅ **已升级到 text-to-cad 0.11.16**，本机不用再装就能开工 |
 | CAD skill 套件 | ✅ 新版 8 个（`cad` `robot-simulation` `fea` `pcb` `print3d` `render` `engineering-drawing` `sendcutsend`），旧的 13 个已并入 |
 | 调研文档 | ✅ 见 [`docs/01-技术路线全景.md`](docs/01-技术路线全景.md) |
-| 第一个完整案例 | ✅ [`examples/robotiq-v-finger`](examples/robotiq-v-finger/README.md)（Robotiq 2F-85 夹爪 V 型槽指尖逆向），**已迁到新 API，几何零差异** |
+| 第一个完整案例 | ✅ [`examples/robotiq-v-finger`](examples/robotiq-v-finger/README.md)（Robotiq 2F-85 夹爪 V 型槽指尖逆向），**已迁到新 API，几何零差异**，并**量出并修掉 3 个真 bug** |
 | 升级到 0.11 | ✅ 已执行，方案与实际结果见 [`docs/05-升级到0.11.md`](docs/05-升级到0.11.md) |
 | 出图验证 | ✅ OCCT 无头渲染本机可用，**0.07～2 秒出图，不用浏览器不用 GPU** |
-| URDF / 机器人工作流 | ✅ 工具链已备齐（MuJoCo 4.0.1 + trimesh + yourdfpy），方法论见 [`docs/06-机器人描述与URDF.md`](docs/06-机器人描述与URDF.md)。⬜ **还没实际跑一个 URDF** |
+| **CAD → URDF → MuJoCo** | ✅ **跑通了一整轮**，见 [`examples/gripper-mechanism`](examples/gripper-mechanism/README.md) 和 [`docs/07-CAD到URDF到MuJoCo.md`](docs/07-CAD到URDF到MuJoCo.md)。查出 **6 个静默行为**（质量丢 93%、接触无法排除、`<mimic>`/限位是软约束…） |
 | GUI 建模软件（Blender / FreeCAD） | ⬜ 待装，但现在**不需要** |
 
 一句话结论：**机械件走「代码参数化」路线，AI 生成网格那条路在 Mac 上不划算。**
@@ -42,6 +42,13 @@
 > **调研里最大的不确定项已经落地**：macOS 的 OpenGL 从 10.14 起就废弃了，
 > OCCT 8 自带的无头光栅器能不能在无头 arm64 上初始化，原本没人验证过。
 > **本机实测：能。** 1600×1200 出图 0.07～2 秒。
+
+> ⚠️ **这一轮最值钱的一条结论**：
+> `cad urdf validate` 只检查 URDF **文件本身**，
+> 看不到 MuJoCo **加载之后**发生的事。
+> 凡是跨格式的检查，都得让目标引擎真的加载一遍。
+> 本仓库因此有了两个通用体检脚本：[`checks/urdf_probe.py`](checks/urdf_probe.py)
+> 和 [`checks/joint_sweep.py`](checks/joint_sweep.py)。
 
 ---
 
@@ -78,13 +85,16 @@ agent-3d-lab/
 │   ├── 03-工作流速查.md           # 建模 / 看图 / 分析 / URDF 的标准动作
 │   ├── 04-我们的现场.md           # 手头三件具体的事（夹爪 / 标定支架 / 鸭子的数模）
 │   ├── 05-升级到0.11.md           # 升级方案与执行记录
-│   └── 06-机器人描述与URDF.md     # URDF 怎么调到物理上说得通（惯性门槛 / MuJoCo 的坑 / 单位陷阱）
+│   ├── 06-机器人描述与URDF.md     # URDF 怎么调到物理上说得通（惯性门槛 / MuJoCo 的坑 / 单位陷阱）
+│   └── 07-CAD到URDF到MuJoCo.md   # 一次端到端实测：6 个静默行为、两个格式的分工
 ├── examples/
-│   └── robotiq-v-finger/         # 第一个完整案例：厂商件逆向重建
+│   ├── robotiq-v-finger/         # 案例一：厂商件逆向重建（Robotiq 2F-85 V 型槽指尖）
+│   └── gripper-mechanism/        # 案例二：CAD → URDF → MuJoCo 全流程（两指夹爪机构）
 ├── templates/
 │   └── cad-project/              # 新 CAD 项目脚手架
 ├── checks/
-│   └── urdf_probe.py             # URDF 体检：揪出 MuJoCo 静默吃掉的 base link 质量等
+│   ├── urdf_probe.py             # URDF 体检：揪出 MuJoCo 静默吃掉的质量
+│   └── joint_sweep.py            # 关节扫描：世界轴向 / 镜像 / 钳口 / 联动残差 / 限位
 ├── scripts/
 │   └── doctor.sh                 # 环境自检
 └── .github/                      # issue / PR 模板
@@ -98,7 +108,7 @@ agent-3d-lab/
 | --- | --- | --- |
 | ① 摸地形 | 盘点本机、调研业界、建仓 | ✅ 完成 |
 | ② 升级 | 升到 text-to-cad 0.11，迁移 Robotiq 案例 | ✅ **已完成**，几何零差异 |
-| ③ 接机器人 | 用新能力做一次「CAD → URDF → MuJoCo → 对比」 | ⬜ 待办 |
+| ③ 接机器人 | 用新能力做一次「CAD → URDF → MuJoCo → 对比」 | ✅ **已完成**，查出 6 个静默行为，见 [`docs/07`](docs/07-CAD到URDF到MuJoCo.md) |
 | ④ 真活① | 标定支架的 A/B 两方案参数化建模 + 数字对比 | ⬜ 待办 |
 | ⑤ 真活② | MicroDuck 关节限位逐条对回 XL330 舵机规格 | ⬜ 待办 |
 | ⑥ 分享 | 转公开，邀朋友贡献 | ⬜ 待办 |
@@ -123,7 +133,8 @@ gh repo edit youttiao/agent-3d-lab --visibility public
 | 建模 | Agent 写 build123d Python 脚本 | 可编辑、可复算的 STEP |
 | 分析厂商件 | Agent 调 `step.read()` + `leaves()` | 尺寸表 |
 | 验证 | 内核算完 → **人看渲染图** | PNG |
-| 机器人描述 | 从 CAD 模型导出，或手写 URDF | `.urdf` + `cad urdf validate` 通过 |
+| 机器人描述 | 从 CAD 模型导出 URDF + MJCF | `.urdf` / `.xml` |
+| 体检 | 通用脚本量，不靠肉眼 | 数字 |
 
 关键前提：**几何由内核算，结论靠看图。**
 尺寸对不代表形状对，每改一次就要出一张图看。

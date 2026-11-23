@@ -21,8 +21,10 @@ import build123d as bd
 from cad import step
 import math
 
-# Lazy bd attribute access — avoid touching the kernel at import time.
 def _align_ccm(): return (bd.Align.CENTER, bd.Align.CENTER, bd.Align.MIN)
+
+
+def _align_c(): return (bd.Align.CENTER, bd.Align.CENTER, bd.Align.CENTER)
 
 
 # === Mount interface (matches Robotiq AGC-TIP-204-085 footprint) ===
@@ -55,25 +57,38 @@ V_BLOCK_Z_MID = V_BLOCK_Z0 + V_BLOCK_HEIGHT / 2.0     # center of V-block
 
 
 def _v_block_body() -> bd.Shape:
-    """Solid block extending upward from the mount rail (no V yet)."""
+    """The finger's solid: a 5 mm mount rail (Z 0..5) plus the V block (Z 5..44).
+
+    The rail is what bolts onto the gripper's finger rail, and it is what the
+    M3 holes and the index pin go through.
+    """
+    rail = bd.Box(MOUNT_W, MOUNT_L, MOUNT_H, align=_align_ccm())
+    rail.label = "mount_rail"
     block = bd.Box(MOUNT_W, MOUNT_L, V_BLOCK_HEIGHT, align=_align_ccm())
     block = bd.Pos(0.0, 0.0, V_BLOCK_Z0) * block
-    return block
+    block.label = "v_block"
+    return rail + block
 
 
-def _v_cutter(sign: int) -> bd.Shape:
+def _v_cutter() -> bd.Shape:
     """Triangular-prism cutter that opens the V on the inner grip face.
 
-    sign=+1 → right finger (V opens to +X)
-    sign=-1 → left finger  (V opens to -X)
+    In the finger's local frame the V opens toward -X (the gripper centreline):
+      * slot mouth (face)  at X = -MOUNT_W/2
+      * apex               at X = -MOUNT_W/2 + V_DEPTH
+      * opening width      V_WIDTH_AT_FACE, across Z (up/down)
+      * extruded along Y — the finger's length, parallel to the pipe axis.
+
+    The section is drawn on Plane.XZ so that (x, z) are the section's own
+    coordinates and the prism runs along the finger's length.
     """
-    apex_x = sign * (MOUNT_W / 2.0 - V_DEPTH)
-    face_x = sign * (MOUNT_W / 2.0)
+    face_x = -MOUNT_W / 2.0                   # slot mouth on the inner face
+    apex_x = face_x + V_DEPTH                # apex retreats into the block
     z_top = V_BLOCK_Z_MID + V_WIDTH_AT_FACE / 2.0
     z_bot = V_BLOCK_Z_MID - V_WIDTH_AT_FACE / 2.0
 
     with bd.BuildPart() as part:
-        with bd.BuildSketch(bd.Plane.XY) as sketch:
+        with bd.BuildSketch(bd.Plane.XZ) as sketch:
             bd.Polygon(
                 (face_x, z_top),
                 (apex_x, V_BLOCK_Z_MID),
@@ -84,32 +99,35 @@ def _v_cutter(sign: int) -> bd.Shape:
 
 
 def _add_mount_features(target: bd.Shape) -> bd.Shape:
-    """Drill 2× M3 through-holes and 1× index-pin hole through the mount rail."""
-    overshoot = MOUNT_H * 2.0
+    """Drill 2× M3 through-holes and 1× index-pin hole through the mount rail.
+
+    The drill spans the rail's thickness (Z 0..MOUNT_H) and 0.5 mm past it, so
+    the hole breaks cleanly out of the rail without drilling into the V block.
+    """
+    depth = MOUNT_H + 1.0
     for dx in (-M3_HOLE_PITCH / 2.0, +M3_HOLE_PITCH / 2.0):
-        hole = bd.Cylinder(M3_HOLE_DIA / 2.0, overshoot, align=_align_ccm())
-        hole = bd.Pos(dx, M3_HOLE_Y, 0.0) * hole
+        hole = bd.Cylinder(M3_HOLE_DIA / 2.0, depth, align=_align_c())
+        hole = bd.Pos(dx, M3_HOLE_Y, MOUNT_H / 2.0) * hole
         target = target - hole
 
-    pin = bd.Cylinder(INDEX_PIN_DIA / 2.0, overshoot, align=_align_ccm())
-    pin = bd.Pos(0.0, INDEX_PIN_Y, 0.0) * pin
+    pin = bd.Cylinder(INDEX_PIN_DIA / 2.0, depth, align=_align_c())
+    pin = bd.Pos(0.0, INDEX_PIN_Y, MOUNT_H / 2.0) * pin
     target = target - pin
     return target
 
 
-def _finger(sign: int, mirror: bool = False) -> bd.Shape:
+def _finger(side: str) -> bd.Shape:
     """One finished finger (mount + V + mount holes), in its local frame.
 
-    sign=+1 → V opens in +X (right finger, before mirroring)
-    sign=-1 → V opens in -X (left finger)
-    mirror=True → reflect across YZ plane (for the left finger)
+    side="right" → the V opens toward -X (towards the gripper centreline)
+    side="left"  → the mirror of the right finger, so its V opens toward +X
     """
     body = _v_block_body()
-    body = body - _v_cutter(sign)
+    body = body - _v_cutter()
     body = _add_mount_features(body)
-    if mirror:
+    if side == "left":
         body = body.mirror(bd.Plane.YZ)
-    body.label = "finger_right" if sign > 0 else "finger_left"
+    body.label = f"finger_{side}"
     return body
 
 
@@ -123,23 +141,25 @@ def _pipe_sample(y_extra: float = 2.0) -> bd.Shape:
     return pipe
 
 
+def _half_pitch() -> float:
+    """Half the distance between the two fingers, so the pipe sits in both V's.
+
+    The pipe's centre is on the gripper's centreline (X=0). For a V of half
+    angle `V_HALF_ANGLE`, the apex sits at R/sin(V_HALF_ANGLE) from that centre,
+    along the V's bisector. The apex is `V_DEPTH - MOUNT_W/2` behind the
+    finger's own centre, towards the centreline.
+    """
+    apex_offset = V_DEPTH - MOUNT_W / 2.0
+    return PIPE_R / math.sin(V_HALF_ANGLE) - apex_offset
+
+
 @step("../STEP/robotiq_v_finger.step")
 def v_finger_pair():
     """Right + left V-fingers + a DN25 pipe sample for context."""
-    # Spread the two fingers so the pipe sits tangent to both V walls.
-    # For right finger at X=+half_pitch: V apex at X = +half_pitch + (-V_DEPTH+MOUNT_W/2)
-    #   = +half_pitch - (V_DEPTH - MOUNT_W/2).
-    # For pipe center at X=0 tangent to right V walls (90° V): pipe center is at
-    #   distance R/sin(V_HALF_ANGLE) from V apex, on the bisector (toward the face).
-    # Set the V apex so the pipe center sits at that distance:
-    #   +half_pitch - (V_DEPTH - MOUNT_W/2) = R/sin(V_HALF_ANGLE)
-    #   => half_pitch = (V_DEPTH - MOUNT_W/2) + R/sin(V_HALF_ANGLE)
-    half_pitch = (V_DEPTH - MOUNT_W / 2.0) + PIPE_R / math.sin(V_HALF_ANGLE)
+    half_pitch = _half_pitch()
 
-    rf = _finger(+1)
-    rf = bd.Pos(+half_pitch, 0.0, 0.0) * rf
-    lf = _finger(-1, mirror=True)
-    lf = bd.Pos(-half_pitch, 0.0, 0.0) * lf
+    rf = bd.Pos(+half_pitch, 0.0, 0.0) * _finger("right")
+    lf = bd.Pos(-half_pitch, 0.0, 0.0) * _finger("left")
     pipe = _pipe_sample()
 
     return bd.Compound(children=[rf, lf, pipe], label="robotiq_v_finger_pair")
@@ -148,9 +168,7 @@ def v_finger_pair():
 @step("../STEP/robotiq_v_finger_single.step")
 def single_finger_with_pipe():
     """One right-hand finger + a tangent DN25 pipe — for V-profile visualization."""
-    half_pitch = (V_DEPTH - MOUNT_W / 2.0) + PIPE_R / math.sin(V_HALF_ANGLE)
-    rf = _finger(+1)
-    rf = bd.Pos(+half_pitch, 0.0, 0.0) * rf
+    rf = bd.Pos(+_half_pitch(), 0.0, 0.0) * _finger("right")
     pipe = _pipe_sample(y_extra=10.0)
     return bd.Compound(children=[rf, pipe], label="robotiq_v_finger_single")
 

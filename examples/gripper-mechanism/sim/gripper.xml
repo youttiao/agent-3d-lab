@@ -1,0 +1,63 @@
+<mujoco model="gripper">
+  <compiler angle="radian" meshdir="assets" autolimits="true"/>
+
+  <option integrator="implicitfast"/>
+
+  <default>
+    <default class="gripper">
+      <default class="visual">
+        <geom contype="0" conaffinity="0" group="2"/>
+      </default>
+      <default class="collision">
+        <geom group="3"/>
+      </default>
+    </default>
+  </default>
+
+  <asset>
+    <mesh name="palm_plate" file="gripper_palm_plate.stl"/>
+    <mesh name="guide_neg" file="gripper_guide_neg.stl"/>
+    <mesh name="finger_right" file="gripper_finger_right.stl"/>
+    <mesh name="finger_left" file="gripper_finger_left.stl"/>
+  </asset>
+
+  <worldbody>
+    <body name="palm" childclass="gripper">
+      <inertial pos="0 0 -0.00576923077" mass="0.75" diaginertia="5.79857002e-05 0.000180678008 0.000229974359"/>
+      <geom class="visual" type="mesh" mesh="palm_plate" name="palm_plate" rgba="0.8 0.8 0.8 1" pos="0 0 -0.012"/>
+      <geom class="visual" type="mesh" mesh="guide_neg" name="guide_neg" rgba="0.8 0.8 0.8 1" pos="0 -0.022 0"/>
+      <geom class="visual" type="mesh" mesh="guide_neg" name="guide_pos" rgba="0.8 0.8 0.8 1" pos="0 0.022 0"/>
+      <geom class="collision" type="mesh" mesh="palm_plate" name="palm_plate_collision" pos="0 0 -0.012"/>
+      <geom class="collision" type="mesh" mesh="guide_neg" name="guide_neg_collision" pos="0 -0.022 0"/>
+      <geom class="collision" type="mesh" mesh="guide_neg" name="guide_pos_collision" pos="0 0.022 0"/>
+      <body name="finger_right" pos="0.0178345238 0 0.0025" quat="0 0.707106781 0 0.707106781">
+        <inertial pos="0.0186101733 -2.06863179e-05 0.00216259031" quat="0.999763294 0.000111780499 -0.0216325405 0.00231856354" mass="0.03" diaginertia="4.61864287e-06 7.08920293e-06 9.70781785e-06"/>
+        <joint name="right" type="slide" axis="0 0 1" range="-0.0068345 0.012" actuatorfrcrange="-140 140"/>
+        <geom class="visual" type="mesh" mesh="finger_right" name="finger_right" rgba="0.8 0.8 0.8 1" pos="-0.0025 0 0" quat="0 0.707106781 0 0.707106781"/>
+        <geom class="collision" type="mesh" mesh="finger_right" name="finger_right_collision" pos="-0.0025 0 0" quat="0 0.707106781 0 0.707106781"/>
+      </body>
+      <body name="finger_left" pos="-0.0178345238 0 0.0025" quat="0 -0.707106781 0 0.707106781">
+        <inertial pos="-0.0186101733 -2.06863179e-05 0.00216259031" quat="0.999763294 0.000111780499 0.0216325405 -0.00231856354" mass="0.03" diaginertia="4.61864287e-06 7.08920293e-06 9.70781785e-06"/>
+        <joint name="left" type="slide" axis="0 0 1" range="-0.0068345 0.012" actuatorfrcrange="-140 140"/>
+        <geom class="visual" type="mesh" mesh="finger_left" name="finger_left" rgba="0.8 0.8 0.8 1" pos="0.0025 0 0" quat="0 -0.707106781 0 0.707106781"/>
+        <geom class="collision" type="mesh" mesh="finger_left" name="finger_left_collision" pos="0.0025 0 0" quat="0 -0.707106781 0 0.707106781"/>
+      </body>
+    </body>
+  </worldbody>
+
+  <contact>
+    <exclude body1="palm" body2="finger_right"/>
+    <exclude body1="palm" body2="finger_left"/>
+  </contact>
+
+  <equality>
+    <joint joint1="left" joint2="right" polycoef="0 1 0 0 0"/>
+  </equality>
+
+  <keyframe>
+    <key name="closed" qpos="-0.0068345 -0.0068345"/>
+    <key name="gripping" qpos="0 0"/>
+    <key name="home" qpos="0.012 0.012"/>
+    <key name="open" qpos="0.012 0.012"/>
+  </keyframe>
+</mujoco>

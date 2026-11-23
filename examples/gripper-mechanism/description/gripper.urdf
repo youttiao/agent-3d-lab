@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<robot name="gripper">
+  <material name="color">
+    <color rgba="0.8 0.8 0.8 1"/>
+  </material>
+
+  <link name="base_link"/>
+
+  <joint name="base_link_joint" type="fixed">
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <parent link="base_link"/>
+    <child link="palm"/>
+  </joint>
+
+  <link name="palm">
+    <inertial>
+      <origin xyz="0 0 -0.00576923077" rpy="0 0 0"/>
+      <mass value="0.75"/>
+      <inertia ixx="5.79857002e-05" ixy="0" ixz="0" iyy="0.000180678008" iyz="0" izz="0.000229974359"/>
+    </inertial>
+    <visual name="palm_plate">
+      <origin xyz="0 0 -0.012" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/gripper_palm_plate.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="color"/>
+    </visual>
+    <visual name="guide_neg">
+      <origin xyz="0 -0.022 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/gripper_guide_neg.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="color"/>
+    </visual>
+    <visual name="guide_pos">
+      <origin xyz="0 0.022 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/gripper_guide_neg.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="color"/>
+    </visual>
+    <collision name="palm_plate">
+      <origin xyz="0 0 -0.012" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/gripper_palm_plate.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+    <collision name="guide_neg">
+      <origin xyz="0 -0.022 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/gripper_guide_neg.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+    <collision name="guide_pos">
+      <origin xyz="0 0.022 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="meshes/gripper_guide_neg.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="right" type="prismatic">
+    <origin xyz="0.0178345238 0 0.0025" rpy="0 -1.57079633 -3.14159265"/>
+    <parent link="palm"/>
+    <child link="finger_right"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-0.0068345" upper="0.012" effort="140" velocity="0.2"/>
+  </joint>
+
+  <link name="finger_right">
+    <inertial>
+      <origin xyz="0.0186101733 -2.06863179e-05 0.00216259031" rpy="0 0 0"/>
+      <mass value="0.03"/>
+      <inertia ixx="4.6282176e-06" ixy="-1.13941314e-08" ixz="-2.19924192e-07" iyy="7.08915022e-06" iyz="-1.34208092e-09" izz="9.69829583e-06"/>
+    </inertial>
+    <visual name="finger_right">
+      <origin xyz="-0.0025 0 0" rpy="0 -1.57079633 -3.14159265"/>
+      <geometry>
+        <mesh filename="meshes/gripper_finger_right.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="color"/>
+    </visual>
+    <collision name="finger_right">
+      <origin xyz="-0.0025 0 0" rpy="0 -1.57079633 -3.14159265"/>
+      <geometry>
+        <mesh filename="meshes/gripper_finger_right.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="left" type="prismatic">
+    <origin xyz="-0.0178345238 0 0.0025" rpy="0 1.57079633 -3.14159265"/>
+    <parent link="palm"/>
+    <child link="finger_left"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-0.0068345" upper="0.012" effort="140" velocity="0.2"/>
+    <mimic joint="right" multiplier="1" offset="0"/>
+  </joint>
+
+  <link name="finger_left">
+    <inertial>
+      <origin xyz="-0.0186101733 -2.06863179e-05 0.00216259031" rpy="0 0 0"/>
+      <mass value="0.03"/>
+      <inertia ixx="4.6282176e-06" ixy="1.13941314e-08" ixz="2.19924192e-07" iyy="7.08915022e-06" iyz="-1.34208092e-09" izz="9.69829583e-06"/>
+    </inertial>
+    <visual name="finger_left">
+      <origin xyz="0.0025 0 0" rpy="0 1.57079633 -3.14159265"/>
+      <geometry>
+        <mesh filename="meshes/gripper_finger_left.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="color"/>
+    </visual>
+    <collision name="finger_left">
+      <origin xyz="0.0025 0 0" rpy="0 1.57079633 -3.14159265"/>
+      <geometry>
+        <mesh filename="meshes/gripper_finger_left.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+</robot>
