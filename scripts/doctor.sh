@@ -81,7 +81,10 @@ echo
 echo "▎项目目录里不该留的旧 skill 镜像"
 STALE=0
 for d in .claude .agents .trae .windsurf .qoder .zcode .zencoder .pi .minimax; do
-  for p in "$HOME"/100-Vibe/*/"$d"/skills; do
+  for proj in "$HOME"/100-Vibe/*/; do
+    proj="${proj%/}"
+    case "$proj" in *.bak*|*.old*) continue ;; esac   # 备份目录不算
+    p="$proj/$d/skills"
     [ -d "$p" ] || continue
     if grep -rql "text-to-cad" "$p"/*/SKILL.md 2>/dev/null; then
       printf "  %s!%s %s %s\n" "$C_OPT" "$C_OFF" "$(pad "$p")" "旧的 0.6 时代 skill 镜像，会盖住新插件"
