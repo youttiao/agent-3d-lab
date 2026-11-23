@@ -46,7 +46,7 @@ echo "════════════════════════�
 echo
 echo "▎核心链路（缺了就没法开工）"
 chk "python3"            "command -v python3"                          "Python 解释器"
-chk "cadgen"             "command -v cadgen"                           "CAD 内核封装：STEP/URDF/SDF/出图"
+chk "cad / cadgen"       "command -v cad || command -v cadgen"        "CAD 内核封装：STEP/URDF/MJCF/出图"
 chk "build123d"          "python3 -c 'import build123d'"                "参数化建模"
 chk "OCP (OpenCascade)"  "python3 -c 'import OCP'"                     "几何内核绑定"
 chk "playwright"         "python3 -c 'import playwright'"               "viewer 出图后端"
@@ -59,12 +59,37 @@ echo "▎核心链路版本"
 if python3 -c 'import build123d' >/dev/null 2>&1; then
   python3 - <<'PY'
 import importlib.metadata as m
-for p in ("cadgen", "build123d", "ocpsvg", "ezdxf", "numpy", "playwright"):
+for p in ("cad", "cadgen", "build123d", "ocpsvg", "ezdxf", "numpy", "playwright"):
     try:
         print(f"    · {p:14} {m.version(p)}")
     except Exception:
         print(f"    · {p:14} (未安装)")
 PY
+fi
+
+# 版本漂移检查：skill 文档固定了 cadgen 版本，对不上时 skill 里的示例会和实际 CLI 打架
+if command -v cadgen >/dev/null 2>&1 || command -v cad >/dev/null 2>&1; then
+  DRIFT=""
+  for d in "$HOME"/100-Vibe/*/.claude/skills/*/; do
+    [ -f "$d/requirements.txt" ] || continue
+    pin=$(grep -oE 'cadgen?(\[[a-z0-9,]+\])?==[0-9.]+' "$d/requirements.txt" 2>/dev/null | head -1 | grep -oE '[0-9.]+$')
+    [ -n "$pin" ] || continue
+    have=$(python3 -c "
+import importlib.metadata as m
+for p in ('cad','cadgen'):
+    try:
+        print(m.version(p)); break
+    except Exception: pass
+" 2>/dev/null)
+    [ -n "$have" ] || continue
+    if [ "$pin" != "$have" ]; then
+      DRIFT="skill 固定 cadgen==${pin}，本机装的是 ${have} —— 文档与实际 CLI 已经对不上（见 docs/05-升级到0.11.md）"
+      break
+    fi
+  done
+  if [ -n "$DRIFT" ]; then
+    printf "  %s!%s %s\n" "$C_OPT" "$C_OFF" "$DRIFT"
+  fi
 fi
 
 echo
