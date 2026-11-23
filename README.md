@@ -95,7 +95,8 @@ agent-3d-lab/
 │   ├── 05-升级到0.11.md           # 升级方案与执行记录
 │   ├── 06-机器人描述与URDF.md     # URDF 怎么调到物理上说得通（惯性门槛 / MuJoCo 的坑 / 单位陷阱）
 │   ├── 07-CAD到URDF到MuJoCo.md   # 一次端到端实测：6 个静默行为、两个格式的分工
-│   └── 08-AI生成3D的现状.md       # 输出侧技术档案：可切片率普查 / 许可陷阱 / mesh→CAD 横评
+│   ├── 08-AI生成3D的现状.md       # 输出侧技术档案：可切片率普查 / 许可陷阱 / mesh→CAD 横评
+│   └── 09-build123d会怎么坑你.md  # 我们这套栈的实测失败模式 + 「先量再说做完了」
 ├── examples/
 │   ├── robotiq-v-finger/         # 案例一：厂商件逆向重建（Robotiq 2F-85 V 型槽指尖）
 │   └── gripper-mechanism/        # 案例二：CAD → URDF → MuJoCo 全流程（两指夹爪机构）
